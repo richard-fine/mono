@@ -6,7 +6,6 @@ struct MonoListReflectionCache
 {
 	MonoClass* klass;
 	MonoProperty* capacityProp;
-	MonoMethod* addMethod;
 	MonoMethod* clearMethod;
 	MonoClassField* size;
 	MonoClassField* items;
@@ -155,7 +154,7 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
             setCapacity(MAX(4, _itemsField->max_length * 2));
         }
         
-        mono_gc_wbarrier_generic_store(((T*)(_itemsField->vector))[_sizeField++], item);
+        mono_gc_wbarrier_generic_store(&((MonoObject*)(_itemsField->vector))[_sizeField++], item);
 	}
 	
 	void load(const MonoObject* data, int count)
