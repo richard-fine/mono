@@ -27,10 +27,9 @@ protected:
     
     inline MonoArray* getItemsArray() const
     {
-        MonoArray* content;
         gpointer* contentPtr = (gpointer*)((char*)_list + _refl.items->offset);
-        mono_gc_wbarrier_generic_store (&content, (MonoObject*)(*contentPtr));
-        return content;
+        // No need for a write barrier as we only ever use this pointer temporarily
+        return *(MonoArray**)contentPtr;
     }
 
     MonoListWrapperBase(MonoObject* list, MonoListReflectionCache& refl) : _list(list), _refl(refl)
@@ -38,6 +37,8 @@ protected:
         if(_refl.klass == NULL)
             _refl.PopulateFrom(mono_object_get_class(list));
     }
+    
+public:
 
     mono_array_size_t getCapacity() const
 	{
@@ -58,7 +59,7 @@ protected:
 };
 
 template<typename T>
-class MonoListWrapper : MonoListWrapperBase
+class MonoListWrapper : public MonoListWrapperBase
 {
 		
 	public:
@@ -89,9 +90,19 @@ class MonoListWrapper : MonoListWrapperBase
 	
 	void add(const T item)
 	{
-		gpointer args[1];
-		args[0] = item;
-		mono_runtime_invoke(_refl.addMethod, _list, args, NULL);
+        MonoArray* items = getItemsArray();
+        mono_array_size_t curCapacity = items->max_length;
+        guint32& size = getSizeField();
+        
+        if(curCapacity == size)
+        {
+            // grow the list
+            setCapacity(MAX(4, curCapacity * 2));
+            // refetch the items array
+            items = getItemsArray();
+        }
+        
+        ((T*)items->vector)[size++] = item;
 	}
 	
 	void load(const T* data, int count)
@@ -109,7 +120,7 @@ class MonoListWrapper : MonoListWrapperBase
 
 // Specialize the template for MonoObject* so we can do the memory barrier stuff
 template<>
-class MonoListWrapper<MonoObject*> : MonoListWrapperBase
+class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 {	
 	public:
 	MonoListWrapper(MonoObject* list, MonoListReflectionCache& refl) : MonoListWrapperBase(list, refl)
@@ -142,6 +153,7 @@ class MonoListWrapper<MonoObject*> : MonoListWrapperBase
 		mono_field_get_value(_list, _refl.items, &content);
 	
 		gpointer dest = mono_array_addr_with_size(content, sizeof(MonoObject*), 0);
+        // Need a write-barrier here as we're changing references within managed space
 		mono_gc_wbarrier_arrayref_copy ((content), dest, (count));
 		memcpy(dest, data, sizeof(MonoObject*) * count);
 	
