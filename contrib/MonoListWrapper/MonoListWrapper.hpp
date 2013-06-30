@@ -149,9 +149,13 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 		
 	void add(MonoObject* item)
 	{		
-		gpointer args[1];
-		args[0] = item;
-		mono_runtime_invoke(_refl.addMethod, _list, args, NULL);
+		if(getCapacity() == _sizeField)
+        {
+            // grow the list
+            setCapacity(MAX(4, _itemsField->max_length * 2));
+        }
+        
+        mono_gc_wbarrier_generic_store(((T*)(_itemsField->vector))[_sizeField++], item);
 	}
 	
 	void load(const MonoObject* data, int count)
