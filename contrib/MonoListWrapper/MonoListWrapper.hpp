@@ -1,5 +1,6 @@
 #include <mono/mini/jit.h>
 #include <mono/metadata/object.h>
+#include <mono/metadata/class-internals.h>
 
 struct MonoListReflectionCache
 {
@@ -15,24 +16,56 @@ struct MonoListReflectionCache
 	void PopulateFrom(MonoClass* klass);
 };
 
-template<typename T>
-class MonoListWrapper
+class MonoListWrapperBase
 {
-	private:
-	MonoObject* _list;
-	
-	MonoListReflectionCache& _refl;
-	
-	public:
-	MonoListWrapper(MonoObject* list, MonoListReflectionCache& refl) : _refl(refl)
-	{		
-		_list = list;
-		
-		if(_refl.klass == NULL)
-		{
-			_refl.PopulateFrom(mono_object_get_class(list));
-		}
+protected:
+    MonoObject* _list;
+    MonoListReflectionCache& _refl;
+    
+    inline guint32& getSizeField() const { return *(guint32*)((char*)_list + _refl.size->offset); }
+    inline guint32& getVersionField() const { return *(guint32*)((char*)_list + _refl.version->offset); }
+    
+    inline MonoArray* getItemsArray() const
+    {
+        MonoArray* content;
+        gpointer* contentPtr = (gpointer*)((char*)_list + _refl.items->offset);
+        mono_gc_wbarrier_generic_store (&content, (MonoObject*)(*contentPtr));
+        return content;
+    }
+
+    MonoListWrapperBase(MonoObject* list, MonoListReflectionCache& refl) : _list(list), _refl(refl)
+    {
+        if(_refl.klass == NULL)
+            _refl.PopulateFrom(mono_object_get_class(list));
+    }
+
+    mono_array_size_t getCapacity() const
+	{
+        return mono_array_length(getItemsArray());
 	}
+    
+    void setCapacity(mono_array_size_t value)
+	{
+		gpointer args[1];
+		args[0] = &value;
+		mono_property_set_value(_refl.capacityProp, _list, args, NULL);
+	}
+	
+	guint32 getSize() const
+	{
+        return getSizeField();
+	}
+};
+
+template<typename T>
+class MonoListWrapper : MonoListWrapperBase
+{
+		
+	public:
+	MonoListWrapper(MonoObject* list, MonoListReflectionCache& refl) : MonoListWrapperBase(list, refl)
+	{
+		
+    }
 	
 	void clear()
 	{
@@ -45,36 +78,13 @@ class MonoListWrapper
         // Reference types should all be handled by the MonoObject*
         // template specialization further down in the file, leaving
         // us free to do a 'fast clear' here.
-        
-        int i = 0;
-        
-        mono_field_set_value(_list, _refl.size, &i);
-        
+    
+        getSizeField() = 0;
+            
         // also increment the version number so that any pending
         // enumerators get nuked
         
-        mono_field_get_value(_list, _refl.version, &i);
-        ++i;
-        mono_field_set_value(_list, _refl.version, &i);
-	}
-	
-	int getCapacity() const
-	{
-		return *(int*)mono_object_unbox(mono_property_get_value(_refl.capacityProp, _list, NULL, NULL));
-	}
-	
-	int setCapacity(int value)
-	{
-		gpointer args[1];
-		args[0] = &value;
-		mono_property_set_value(_refl.capacityProp, _list, args, NULL);
-	}
-	
-	int getSize() const
-	{
-		int result = 0;
-		mono_field_get_value(_list, _refl.size, &result);
-		return result;
+        getVersionField()++;
 	}
 	
 	void add(const T item)
@@ -87,36 +97,24 @@ class MonoListWrapper
 	void load(const T* data, int count)
 	{
 		clear();
-		setCapacity(count);
+        if(getCapacity() < count)
+            setCapacity(count);
 	
-		MonoArray* content;
-		mono_field_get_value(_list, _refl.items, &content);
+        MonoArray* content = getItemsArray();	
+		memcpy(content->vector, data, sizeof(T) * count);
 	
-		gpointer dest = mono_array_addr_with_size(content, sizeof(T), 0);
-		memcpy(dest, data, sizeof(T) * count);
-	
-		mono_field_set_value(_list, _refl.size, &count);
+        getSizeField() = count;
 	}
 };
 
 // Specialize the template for MonoObject* so we can do the memory barrier stuff
 template<>
-class MonoListWrapper<MonoObject*>
-{
-	private:
-	MonoObject* _list;
-	
-	MonoListReflectionCache& _refl;
-	
+class MonoListWrapper<MonoObject*> : MonoListWrapperBase
+{	
 	public:
-	MonoListWrapper(MonoObject* list, MonoListReflectionCache& refl) : _refl(refl)
+	MonoListWrapper(MonoObject* list, MonoListReflectionCache& refl) : MonoListWrapperBase(list, refl)
 	{		
-		_list = list;
 		
-		if(_refl.klass == NULL)
-		{
-			_refl.PopulateFrom(mono_object_get_class(list));
-		}
 	}
 	
 	void clear()
@@ -127,26 +125,7 @@ class MonoListWrapper<MonoObject*>
         
 		mono_runtime_invoke(_refl.clearMethod, _list, NULL, NULL);
 	}
-	
-	int getCapacity() const
-	{
-		return *(int*)mono_object_unbox(mono_property_get_value(_refl.capacityProp, _list, NULL, NULL));
-	}
-	
-	int setCapacity(int value)
-	{
-		gpointer args[1];
-		args[0] = &value;
-		mono_property_set_value(_refl.capacityProp, _list, args, NULL);
-	}
-	
-	int getSize() const
-	{
-		int result = 0;
-		mono_field_get_value(_list, _refl.size, &result);
-		return result;
-	}
-	
+		
 	void add(MonoObject* item)
 	{		
 		gpointer args[1];
