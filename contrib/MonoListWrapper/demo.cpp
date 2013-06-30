@@ -35,7 +35,7 @@ MonoArray* GetSampleDataNewArray()
 	MonoArray* result = mono_array_new(mono_domain_get(), mono_get_int32_class(), DATASIZE);
 	
 	gpointer dest = mono_array_addr_with_size(result, sizeof(int), 0);
-	memcpy(dest, SAMPLE_DATA, sizeof(int) * sizeof(DATASIZE));
+	memcpy(dest, SAMPLE_DATA, sizeof(int) * DATASIZE);
 	
 	return result;
 }
