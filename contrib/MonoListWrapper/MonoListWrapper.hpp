@@ -22,39 +22,38 @@ protected:
     MonoObject* _list;
     MonoListReflectionCache& _refl;
     
-    inline guint32& getSizeField() const { return *(guint32*)((char*)_list + _refl.size->offset); }
-    inline guint32& getVersionField() const { return *(guint32*)((char*)_list + _refl.version->offset); }
-    
-    inline MonoArray* getItemsArray() const
-    {
-        gpointer* contentPtr = (gpointer*)((char*)_list + _refl.items->offset);
-        // No need for a write barrier as we only ever use this pointer temporarily
-        return *(MonoArray**)contentPtr;
-    }
+    guint32& _sizeField;
+    guint32& _versionField;
+    MonoArray*& _itemsField;
 
-    MonoListWrapperBase(MonoObject* list, MonoListReflectionCache& refl) : _list(list), _refl(refl)
+    MonoListWrapperBase(MonoObject* list, MonoListReflectionCache& refl) :
+        _list(list), _refl(refl),
+        _sizeField(*(guint32*)((char*)_list + _refl.size->offset)),
+        _versionField(*(guint32*)((char*)_list + _refl.version->offset)),
+        _itemsField(*(MonoArray**)((char*)_list + _refl.items->offset))
     {
-        if(_refl.klass == NULL)
-            _refl.PopulateFrom(mono_object_get_class(list));
+        
     }
     
 public:
 
-    mono_array_size_t getCapacity() const
+    inline mono_array_size_t getCapacity() const
 	{
-        return mono_array_length(getItemsArray());
+        return _itemsField != NULL ? _itemsField->max_length : 0;
 	}
     
     void setCapacity(mono_array_size_t value)
 	{
+        if(getCapacity() == value) return;
+        
 		gpointer args[1];
 		args[0] = &value;
 		mono_property_set_value(_refl.capacityProp, _list, args, NULL);
 	}
 	
-	guint32 getSize() const
+	inline guint32 getSize() const
 	{
-        return getSizeField();
+        return _sizeField;
 	}
 };
 
@@ -80,29 +79,23 @@ class MonoListWrapper : public MonoListWrapperBase
         // template specialization further down in the file, leaving
         // us free to do a 'fast clear' here.
     
-        getSizeField() = 0;
+        _sizeField = 0;
             
         // also increment the version number so that any pending
         // enumerators get nuked
         
-        getVersionField()++;
+        _versionField++;
 	}
 	
 	void add(const T item)
 	{
-        MonoArray* items = getItemsArray();
-        mono_array_size_t curCapacity = items->max_length;
-        guint32& size = getSizeField();
-        
-        if(curCapacity == size)
+        if(getCapacity() == _sizeField)
         {
             // grow the list
-            setCapacity(MAX(4, curCapacity * 2));
-            // refetch the items array
-            items = getItemsArray();
+            setCapacity(MAX(4, _itemsField->max_length * 2));
         }
         
-        ((T*)items->vector)[size++] = item;
+        ((T*)(_itemsField->vector))[_sizeField++] = item;
 	}
 	
 	void load(const T* data, int count)
@@ -111,10 +104,9 @@ class MonoListWrapper : public MonoListWrapperBase
         if(getCapacity() < count)
             setCapacity(count);
 	
-        MonoArray* content = getItemsArray();	
-		memcpy(content->vector, data, sizeof(T) * count);
+		memcpy((void*)_itemsField->vector, data, sizeof(T) * count);
 	
-        getSizeField() = count;
+        _sizeField = count;
 	}
 };
 
@@ -157,6 +149,6 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 		mono_gc_wbarrier_arrayref_copy ((content), dest, (count));
 		memcpy(dest, data, sizeof(MonoObject*) * count);
 	
-		mono_field_set_value(_list, _refl.size, &count);
+		_sizeField = count;
 	}
 };
