@@ -17,4 +17,5 @@ void MonoListReflectionCache::PopulateFrom(MonoClass* inKlass)
 	
 	size = mono_class_get_field_from_name(klass, "_size");
 	items = mono_class_get_field_from_name(klass, "_items");
+    version = mono_class_get_field_from_name(klass, "_version");
 }

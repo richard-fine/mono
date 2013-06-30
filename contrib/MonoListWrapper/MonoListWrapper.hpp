@@ -9,6 +9,7 @@ struct MonoListReflectionCache
 	MonoMethod* clearMethod;
 	MonoClassField* size;
 	MonoClassField* items;
+    MonoClassField* version;
 	
 	MonoListReflectionCache();
 	void PopulateFrom(MonoClass* klass);
@@ -35,7 +36,26 @@ class MonoListWrapper
 	
 	void clear()
 	{
-		mono_runtime_invoke(_refl.clearMethod, _list, NULL, NULL);
+        // Ideally we want to avoid actually invoking Clear()
+        // as it's another native->managed transition and it also
+        // spends time nulling out all the entries in the array.
+        // While that's valuable for reference types (so they can be
+        // GCed) it's not worth it for primitive types.
+        //
+        // Reference types should all be handled by the MonoObject*
+        // template specialization further down in the file, leaving
+        // us free to do a 'fast clear' here.
+        
+        int i = 0;
+        
+        mono_field_set_value(_list, _refl.size, &i);
+        
+        // also increment the version number so that any pending
+        // enumerators get nuked
+        
+        mono_field_get_value(_list, _refl.version, &i);
+        ++i;
+        mono_field_set_value(_list, _refl.version, &i);
 	}
 	
 	int getCapacity() const
@@ -101,6 +121,10 @@ class MonoListWrapper<MonoObject*>
 	
 	void clear()
 	{
+        // MonoObject being the base of all reference types, we
+        // need to do a 'proper' clear so that all references in
+        // the array stop keeping things alive against the GC.
+        
 		mono_runtime_invoke(_refl.clearMethod, _list, NULL, NULL);
 	}
 	
