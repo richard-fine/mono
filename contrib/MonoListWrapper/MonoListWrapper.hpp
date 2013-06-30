@@ -108,6 +108,24 @@ class MonoListWrapper : public MonoListWrapperBase
 	
         _sizeField = count;
 	}
+    
+    T* beginWriting(int capacity, guint32* handle)
+    {
+        clear();
+        if(getCapacity() < capacity)
+            setCapacity(capacity);
+        
+        *handle = mono_gchandle_new((MonoObject*)_itemsField, TRUE);
+        
+        return (T*)_itemsField->vector;
+    }
+    
+    void endWriting(int totalWritten, guint32 handle)
+    {
+        _sizeField = totalWritten;
+        mono_gchandle_free(handle);
+    }
+
 };
 
 // Specialize the template for MonoObject* so we can do the memory barrier stuff
