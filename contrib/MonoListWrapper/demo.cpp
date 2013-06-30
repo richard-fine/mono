@@ -88,6 +88,9 @@ main (int argc, char* argv[]) {
 	retval = mono_environment_exitcode_get ();
 	
 	mono_jit_cleanup (domain);
+    
+    delete cacheGroup;
+    
 	return retval;
 }
 
