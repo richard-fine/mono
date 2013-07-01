@@ -157,7 +157,7 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
         mono_gc_wbarrier_generic_store(&((MonoObject*)(_itemsField->vector))[_sizeField++], item);
 	}
 	
-	void load(const MonoObject* data, int count)
+	void load(MonoObject** data, int count)
 	{
 		clear();
 		setCapacity(count);
@@ -172,4 +172,27 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 	
 		_sizeField = count;
 	}
+    
+    MonoObject** beginWriting(int capacity, guint32* handle)
+    {
+        clear();
+        if(getCapacity() < capacity)
+            setCapacity(capacity);
+        
+        *handle = mono_gchandle_new((MonoObject*)_itemsField, TRUE);
+        
+        return (MonoObject**)_itemsField->vector;
+    }
+    
+    void endWriting(int totalWritten, guint32 handle)
+    {
+        _sizeField = totalWritten;
+        
+        // Mark all the newly added objects for the GC
+        int i;
+        for(i = 0; i < totalWritten; ++i)
+            mono_gc_wbarrier_generic_nostore(&((MonoObject**)_itemsField->vector)[i]);
+        
+        mono_gchandle_free(handle);
+    }
 };
