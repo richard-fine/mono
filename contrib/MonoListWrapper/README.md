@@ -87,3 +87,11 @@ repeated 100,000 times - these are slower because there's more GC involvement:
     83ms
     
 These tests are all in the demo program.
+
+What's still to do?
+-------------------
+
+* Make sure it works with AOT
+* Read support
+* More tests
+* Error handling/type verification
