@@ -139,11 +139,18 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 	
 	void clear()
 	{
-        // MonoObject being the base of all reference types, we
-        // need to do a 'proper' clear so that all references in
-        // the array stop keeping things alive against the GC.
+        // We need to actually memset the array to zero, so that none of the references
+        // get counted by the GC. But otherwise it's pretty much the same as normal.
         
-		mono_runtime_invoke(_refl.clearMethod, _list, NULL, NULL);
+        int sz = mono_array_element_size (mono_object_class (_itemsField));
+        memset (_itemsField->vector, 0, sz * _itemsField->max_length);
+        
+        _sizeField = 0;
+        
+        // also increment the version number so that any pending
+        // enumerators get nuked
+        
+        _versionField++;
 	}
 		
 	void add(MonoObject* item)
@@ -160,14 +167,15 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
 	void load(MonoObject** data, int count)
 	{
 		clear();
-		setCapacity(count);
+        if(getCapacity() < count)
+            setCapacity(count);
 	
-		MonoArray* content;
-		mono_field_get_value(_list, _refl.items, &content);
-	
-		gpointer dest = mono_array_addr_with_size(content, sizeof(MonoObject*), 0);
+		gpointer dest = (gpointer)_itemsField->vector;
+        
         // Need a write-barrier here as we're changing references within managed space
-		mono_gc_wbarrier_arrayref_copy ((content), dest, (count));
+		mono_gc_wbarrier_arrayref_copy (_itemsField, dest, (count));
+        
+        // Despite the name, the write barrier doesn't actually *do* the copy...
 		memcpy(dest, data, sizeof(MonoObject*) * count);
 	
 		_sizeField = count;
@@ -189,9 +197,7 @@ class MonoListWrapper<MonoObject*> : public MonoListWrapperBase
         _sizeField = totalWritten;
         
         // Mark all the newly added objects for the GC
-        int i;
-        for(i = 0; i < totalWritten; ++i)
-            mono_gc_wbarrier_generic_nostore(&((MonoObject**)_itemsField->vector)[i]);
+        mono_gc_wbarrier_arrayref_copy(_itemsField, _itemsField->vector, totalWritten);
         
         mono_gchandle_free(handle);
     }
