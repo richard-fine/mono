@@ -65,17 +65,18 @@ Just how fast is it?
 On my Macbook Air, 1.6GHz Core i5, sending 1000 integers from native to managed land
 by various methods repeated 100,000 times:
 
+Method                                                    | Time
+----------------------------------------------------------|-------
 Allocating an array, copying the data in and returning it | 657ms
-----------------------------------------------------------|-------
 Using a passed-in list with reserved capacity, creating the wrapper without caching the reflection information, loading the data and returning it | 157ms
-----------------------------------------------------------|-------
 Using a passed-in list with reserved capacity, creating the wrapper with cached reflection information, loading the data and returning it | 23ms
     
 Also, sending 1000 class instances from native to managed land by various methods,
 repeated 100,000 times - these are slower because there's more GC involvement:
 
+Method                                                    | Time
+----------------------------------------------------------|-------
 Allocating an array, copying the data in and returning it | 1378ms
-----------------------------------------------------------|--------
 Using a passed-in list with reserved capacity, creating the wrapper with cached reflection information, loading the data and returning it | 83ms
     
 These tests are all in the demo program.
