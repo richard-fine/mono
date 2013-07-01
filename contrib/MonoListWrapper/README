@@ -24,12 +24,14 @@ How do I use it?
 
     #include "MonoListWrapper.hpp"
 
-    // Get all the reflection data needed. These objects can be set up once per list type and reused, see below
+    // Get all the reflection data needed. These objects can be set up once per list type 
+    // and reused, see below
     MonoListReflectionCache refl;
     refl.PopulateFrom(mono_object_get_class(myList));
     
-    // Make the wrapper - assumes myList is a MonoObject* to a System.Collections.Generic.List<int>
-    MonoListWrapper<int> listOfInt(myList);
+    // Make the wrapper - assumes myList is a MonoObject* to 
+    // a System.Collections.Generic.List<int>
+    MonoListWrapper<int> listOfInt(myList, refl);
     
     // Use it
     listOfInt.clear();
@@ -50,6 +52,38 @@ How do I use it?
     
     // No read access yet :)
     
-    // All reference-typed collections are treated as MonoObject*
-    MonoListWrapper<MonoObject*> listOfObj(myList);
+    // Instead of fetching reflection information every time, use ReflectionCacheGroup:
+    ReflectionCacheGroup cacheGroup;
+    MonoListWrapper<int> listOfInt(myList, cacheGroup.GetCacheFor(myList));
     
+    // Or just save the MonoListReflectionCache in a nearby variable
+    // and retrieve it when needed. Just don't keep it across an AppDomain reload.
+    
+Just how fast is it?
+--------------------
+
+On my Macbook Air, 1.6GHz Core i5, sending 1000 integers from native to managed land
+by various methods repeated 100,000 times:
+
+* Allocating an array, copying the data in and returning it
+    657ms
+    
+* Using a passed-in list with reserved capacity, creating the wrapper without
+  caching the reflection information, loading the data and returning it
+    157ms
+    
+* Using a passed-in list with reserved capacity, creating the wrapper with
+  cached reflection information, loading the data and returning it
+    23ms
+    
+Also, sending 1000 class instances from native to managed land by various methods,
+repeated 100,000 times - these are slower because there's more GC involvement:
+
+* Allocating an array, copying the data in and returning it
+    1378ms
+    
+* Using a passed-in list with reserved capacity, creating the wrapper with
+  cached reflection information, loading the data and returning it
+    83ms
+    
+These tests are all in the demo program.
