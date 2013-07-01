@@ -6,6 +6,8 @@ using System.Linq;
 
 class FastCollectionsDemo {
 	
+    // Primitive tests
+    
 	[MethodImplAttribute(MethodImplOptions.InternalCall)]
 	extern static int[] GetSampleDataNewArray();
 	
@@ -14,7 +16,40 @@ class FastCollectionsDemo {
 	
 	[MethodImplAttribute(MethodImplOptions.InternalCall)]
 	extern static void GetSampleDataExistingListUnshared(List<int> result);
+    
+    [MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static void GetAltSampleDataExistingList(List<float> result);
 	
+	[MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static int[] GetDynamicSampleDataNewArray();
+	
+	[MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static void GetDynamicSampleDataExistingList(List<int> result);
+    
+    // Object tests
+    
+    public class MyObject
+    {
+        public int value;
+    }
+    
+    public static MyObject[] SourceObjects;
+    
+    [MethodImplAttribute(MethodImplOptions.InternalCall)]
+    extern static void SetObjSampleData(MyObject[] arr);
+	
+    [MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static MyObject[] GetObjSampleDataNewArray();
+	
+	[MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static void GetObjSampleDataExistingList(List<MyObject> result);
+	
+	[MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static MyObject[] GetObjDynamicSampleDataNewArray();
+	
+	[MethodImplAttribute(MethodImplOptions.InternalCall)]
+	extern static void GetObjDynamicSampleDataExistingList(List<MyObject> result);
+    
 	public const int iterations = 100000;
     
     public static void RunTimingTest(Action test, int iterations, string name)
@@ -45,10 +80,33 @@ class FastCollectionsDemo {
             ++i;
         }
     }
+    
+    public static void CheckCorrectness(IEnumerable<MyObject> data)
+    {
+        if(data.Count() != SourceObjects.Length)
+        {
+            System.Console.WriteLine("Sample data is the wrong length! Expected {0}, actual {1}.", SourceObjects.Length, data.Count());
+            return;
+        }
+        
+        int i = 0;
+        foreach(var elem in data)
+        {
+            if(elem != SourceObjects[i])
+                System.Console.WriteLine("Error in slot {0}! Expected {0}, actual {1}.", SourceObjects[i], elem);
+            ++i;
+        }
+
+    }
+
 	
 	static void Main () {
     
         var l = new List<int>();
+        var l2 = new List<float>();
+    
+        l.Capacity = 1000;
+        l2.Capacity = 1000;
     
         System.Console.WriteLine("Checking correctness of GetSampleDataNewArray:");
         CheckCorrectness(GetSampleDataNewArray());
@@ -63,6 +121,15 @@ class FastCollectionsDemo {
         GetSampleDataExistingListUnshared(l);
         CheckCorrectness(l);
         System.Console.WriteLine("Done.");
+        
+        System.Console.WriteLine("Checking correctness of GetDynamicSampleDataNewArray:");
+        CheckCorrectness(GetDynamicSampleDataNewArray());
+        System.Console.WriteLine("Done.");
+
+        System.Console.WriteLine("Checking correctness of GetDynamicSampleDataExistingList:");
+        GetDynamicSampleDataExistingList(l);
+        CheckCorrectness(l);
+        System.Console.WriteLine("Done.");
     
         RunTimingTest(() => GetSampleDataNewArray(), iterations, "GetSampleDataNewArray");
         
@@ -70,5 +137,45 @@ class FastCollectionsDemo {
         
         RunTimingTest(() => GetSampleDataExistingListUnshared(l), iterations, "GetSampleDataExistingListUnshared");
         
+        RunTimingTest(() => GetAltSampleDataExistingList(l2), iterations, "GetAltSampleDataExistingList");
+        
+        RunTimingTest(() => GetDynamicSampleDataNewArray(), iterations, "GetDynamicSampleDataNewArray");
+        
+        RunTimingTest(() => GetDynamicSampleDataExistingList(l), iterations, "GetDynamicSampleDataExistingList");
+        
+        SourceObjects = new MyObject[1000];
+        for(int i = 0; i < 1000; ++i)
+            SourceObjects[i] = new MyObject{value = i};
+            
+        SetObjSampleData(SourceObjects);
+        
+        var l3 = new List<MyObject>();
+        
+        System.Console.WriteLine("Checking correctness of GetSampleDataNewArray:");
+        CheckCorrectness(GetObjSampleDataNewArray());
+        System.Console.WriteLine("Done.");
+        
+        System.Console.WriteLine("Checking correctness of GetSampleDataExistingList:");
+        GetObjSampleDataExistingList(l3);
+        CheckCorrectness(l3);
+        System.Console.WriteLine("Done.");
+        
+        System.Console.WriteLine("Checking correctness of GetDynamicSampleDataNewArray:");
+        CheckCorrectness(GetObjDynamicSampleDataNewArray());
+        System.Console.WriteLine("Done.");
+
+        System.Console.WriteLine("Checking correctness of GetDynamicSampleDataExistingList:");
+        GetObjDynamicSampleDataExistingList(l3);
+        CheckCorrectness(l3);
+        System.Console.WriteLine("Done.");
+    
+        RunTimingTest(() => GetObjSampleDataNewArray(), iterations, "GetObjSampleDataNewArray");
+        
+        RunTimingTest(() => GetObjSampleDataExistingList(l3), iterations, "GetObjSampleDataExistingList");
+        
+        RunTimingTest(() => GetObjDynamicSampleDataNewArray(), iterations, "GetObjDynamicSampleDataNewArray");
+        
+        RunTimingTest(() => GetObjDynamicSampleDataExistingList(l3), iterations, "GetObjDynamicSampleDataExistingList");
+
     }
 }
