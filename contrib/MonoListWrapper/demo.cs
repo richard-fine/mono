@@ -13,9 +13,6 @@ class FastCollectionsDemo {
 	
 	[MethodImplAttribute(MethodImplOptions.InternalCall)]
 	extern static void GetSampleDataExistingList(List<int> result);
-	
-	[MethodImplAttribute(MethodImplOptions.InternalCall)]
-	extern static void GetSampleDataExistingListUnshared(List<int> result);
     
     [MethodImplAttribute(MethodImplOptions.InternalCall)]
 	extern static void GetAltSampleDataExistingList(List<float> result);
@@ -117,11 +114,6 @@ class FastCollectionsDemo {
         CheckCorrectness(l);
         System.Console.WriteLine("Done.");
         
-        System.Console.WriteLine("Checking correctness of GetSampleDataExistingListUnshared:");
-        GetSampleDataExistingListUnshared(l);
-        CheckCorrectness(l);
-        System.Console.WriteLine("Done.");
-        
         System.Console.WriteLine("Checking correctness of GetDynamicSampleDataNewArray:");
         CheckCorrectness(GetDynamicSampleDataNewArray());
         System.Console.WriteLine("Done.");
@@ -134,8 +126,6 @@ class FastCollectionsDemo {
         RunTimingTest(() => GetSampleDataNewArray(), iterations, "GetSampleDataNewArray");
         
         RunTimingTest(() => GetSampleDataExistingList(l), iterations, "GetSampleDataExistingList");
-        
-        RunTimingTest(() => GetSampleDataExistingListUnshared(l), iterations, "GetSampleDataExistingListUnshared");
         
         RunTimingTest(() => GetAltSampleDataExistingList(l2), iterations, "GetAltSampleDataExistingList");
         

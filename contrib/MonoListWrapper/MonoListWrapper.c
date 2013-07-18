@@ -1,30 +1,36 @@
 #include <mono/mini/jit.h>
+#include <mono/metadata/exception.h>
+#include <mono/metadata/class-internals.h>
 #include "MonoListWrapper.h"
 
-typedef struct
+static struct
 {
+    char isInited;
 	MonoProperty* capacityProp;
 	MonoMethod* clearMethod;
 	MonoClassField* size;
 	MonoClassField* items;
     MonoClassField* version;
-} MonoListReflectionCache;
+} ListRefl = { 0 };
 
-static MonoListReflectionCache ListRefl = { 0 };
 
-void mono_listwrapper_init_reflection_cache(MonoListReflectionCache* cache, MonoClass* klass)
+static void mono_listwrapper_init_reflection(MonoObject* listObj)
 {
-    cache->capacityProp = mono_class_get_property_from_name(klass, "Capacity");
-    cache->clearMethod = mono_class_get_method_from_name(klass, "Clear", 0);
+    MonoClass* klass = mono_object_get_class(listObj);
     
-    cache->size = mono_class_get_field_from_name(klass, "_size");
-	cache->items = mono_class_get_field_from_name(klass, "_items");
-    cache->version = mono_class_get_field_from_name(klass, "_version");
+    ListRefl.capacityProp = mono_class_get_property_from_name(klass, "Capacity");
+    ListRefl.clearMethod = mono_class_get_method_from_name(klass, "Clear", 0);
+    
+    ListRefl.size = mono_class_get_field_from_name(klass, "_size");
+	ListRefl.items = mono_class_get_field_from_name(klass, "_items");
+    ListRefl.version = mono_class_get_field_from_name(klass, "_version");
+    
+    ListRefl.isInited = 1;
 }
 
-void mono_listwrapper_init_reflection(MonoObject* listObj)
+void mono_listwrapper_clear_refl_data()
 {
-    mono_listwrapper_init_reflection_cache(&ListRefl, mono_object_get_class(listObj));
+    ListRefl.isInited = 0;
 }
 
 void mono_listwrapper_init(MonoListWrapper* wrapper, MonoObject* list)
@@ -33,7 +39,7 @@ void mono_listwrapper_init(MonoListWrapper* wrapper, MonoObject* list)
         mono_raise_exception(mono_get_exception_argument_null("list"));
     wrapper->list = list;
     
-    if(ListRefl.items == NULL)
+    if(ListRefl.isInited == 0)
         mono_listwrapper_init_reflection(list);
     
     wrapper->sizeField = (guint32*)((char*)list + ListRefl.size->offset);
@@ -75,10 +81,12 @@ void mono_listwrapper_clear(MonoListWrapper* wrapper)
     // If the element type of the list is a value type, we can just do a 'fast resize'
     // If it's not a value type, we need to actually wipe the values back to zero so that
     // the GC doesn't treat them as outstanding references
-    if(MONO_TYPE_IS_REFERENCE(wrapper->elementType))
+    if(MONO_TYPE_IS_REFERENCE(wrapper->elementType) && (*(wrapper->sizeField) > 0))
     {
         int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
-        memset ((*wrapper->itemsField)->vector, 0, sz * (*(wrapper->itemsField))->max_length);
+        
+        // Let's assume the array has been well-maintained and therefore that we only need to clear as far as the current size
+        memset ((*wrapper->itemsField)->vector, 0, sz * (*(wrapper->sizeField)));
     }
     
     *(wrapper->sizeField) = 0;
@@ -89,11 +97,33 @@ void mono_listwrapper_clear(MonoListWrapper* wrapper)
     (*(wrapper->versionField))++;
 }
 
+void mono_listwrapper_set_size(MonoListWrapper* wrapper, int size)
+{
+    // Ensure that the capacity is there
+    if(mono_listwrapper_get_capacity(wrapper) < size)
+        mono_listwrapper_set_capacity(wrapper, size);
+    
+    // If there are presently extra entries in the array, and this is a reference-typed list, clear the extra entries so that
+    // the GC doesn't find them
+    if(MONO_TYPE_IS_REFERENCE(wrapper->elementType) && (*(wrapper->sizeField) > size))
+    {
+        int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
+        
+        memset ((char*)((*wrapper->itemsField)->vector) + sz * size, 0, sz * (*(wrapper->sizeField) - size));
+    }
+    
+    // Set the size
+    *(wrapper->sizeField) = size;
+    
+    // also increment the version number so that any pending
+    // enumerators get nuked
+    
+    (*(wrapper->versionField))++;
+}
+
 void mono_listwrapper_load(MonoListWrapper* wrapper, void* data, size_t elemSize, mono_array_size_t count)
 {
-    mono_listwrapper_clear(wrapper);
-    if(mono_listwrapper_get_capacity(wrapper) < count)
-        mono_listwrapper_set_capacity(wrapper, count);
+    mono_listwrapper_set_size(wrapper, count);
     
     gpointer dest = (gpointer)(*(wrapper->itemsField))->vector;
     
@@ -105,8 +135,6 @@ void mono_listwrapper_load(MonoListWrapper* wrapper, void* data, size_t elemSize
 	}
     
     memcpy((void*)dest, data, elemSize * count);
-	
-    *(wrapper->sizeField) = count;
 }
 
 void* mono_listwrapper_begin_writing(MonoListWrapper* wrapper, int maxElems, guint32* handle)

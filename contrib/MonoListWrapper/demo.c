@@ -49,13 +49,6 @@ void GetSampleDataExistingList(MonoObject* list)
     mono_listwrapper_load(&wr, SAMPLE_DATA, sizeof(int), DATASIZE);
 }
 
-void GetSampleDataExistingListUnshared(MonoObject* list)
-{	
-    MonoListWrapper wr;
-    mono_listwrapper_init(&wr, list);
-    mono_listwrapper_load(&wr, SAMPLE_DATA, sizeof(int), DATASIZE);
-}
-
 void GetAltSampleDataExistingList(MonoObject* list)
 {
     MonoListWrapper wr;
@@ -186,7 +179,6 @@ main (int argc, char* argv[]) {
 	
 	mono_add_internal_call("FastCollectionsDemo::GetSampleDataNewArray", (void*)GetSampleDataNewArray);
 	mono_add_internal_call("FastCollectionsDemo::GetSampleDataExistingList", (void*)GetSampleDataExistingList);
-	mono_add_internal_call("FastCollectionsDemo::GetSampleDataExistingListUnshared", (void*)GetSampleDataExistingListUnshared);
     mono_add_internal_call("FastCollectionsDemo::GetAltSampleDataExistingList", (void*)GetAltSampleDataExistingList);
     mono_add_internal_call("FastCollectionsDemo::GetDynamicSampleDataNewArray", (void*)GetDynamicSampleDataNewArray);
 	mono_add_internal_call("FastCollectionsDemo::GetDynamicSampleDataExistingList", (void*)GetDynamicSampleDataExistingList);
