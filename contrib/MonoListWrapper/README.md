@@ -36,7 +36,7 @@ How do I use it?
     
     // Or pin it and write some unknown-ahead-of-time number of entries in
     guint32 pinHandle;
-    int* ptr = mono_listwrapper_begin_writing(&wr, /* capacity to reserve: */ 100, &pinHandle);
+    int* ptr = (int*)mono_listwrapper_begin_writing(&wr, /* capacity to reserve: */ 100, &pinHandle);
     ptr[0] = 1;
     ptr[1] = 3;
     ptr[2] = 3;
