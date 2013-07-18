@@ -4,7 +4,7 @@ MonoListWrapper
 What is it?
 -----------
 
-A C++ library to make it easier to work with System.Collections.Generic.List<T> objects from the native side of an embedded Mono.
+A C library to make it easier to work with System.Collections.Generic.List<T> objects from the native side of an embedded Mono.
 
 It is:
 
@@ -15,49 +15,35 @@ It is:
 
 It is not:
 
-* Hugely typesafe - up to you to ensure your List<T> is a type that matches your MonoListWrapper<T>
+* Hugely typesafe (it is C after all)
 * a good example of respect for encapsulation
 * Keyser Soze
 
 How do I use it?
 ----------------
 
-    #include "MonoListWrapper.hpp"
+    #include "MonoListWrapper.h"
 
-    // Get all the reflection data needed. These objects can be set up once per list type 
-    // and reused, see below
-    MonoListReflectionCache refl;
-    refl.PopulateFrom(mono_object_get_class(myList));
+    // Make a wrapper, wherever you like
+    MonoListWrapper wr;
     
-    // Make the wrapper - assumes myList is a MonoObject* to 
+    // Initialise it - let's assume myList is a MonoObject* to
     // a System.Collections.Generic.List<int>
-    MonoListWrapper<int> listOfInt(myList, refl);
-    
-    // Use it
-    listOfInt.clear();
-    listOfInt.setCapacity(100);
-    listOfInt.add(5);
+    mono_listwrapper_init(&wr, myList)
     
     // Bulk load data all in one go - almost a naked memcpy for primitives
-    listOfInt.load(bigIntArray, 500);
+    mono_listwrapper_load(&wr, bigArrayOfInts, sizeof(int), numberOfThingsInTheArray);
     
     // Or pin it and write some unknown-ahead-of-time number of entries in
     guint32 pinHandle;
-    int* ptr = listOfInt.beginWriting(/* capacity to reserve: */ 100, &pinHandle);
+    int* ptr = mono_listwrapper_begin_writing(&wr, /* capacity to reserve: */ 100, &pinHandle);
     ptr[0] = 1;
     ptr[1] = 3;
     ptr[2] = 3;
     ptr[3] = 7;
-    listOfInt.endWriting(/* number actually written: */ 4, pinHandle);
+    mono_listwrapper_end_writing(&wr, /* number actually written: */ 4, pinHandle);
     
     // No read access yet :)
-    
-    // Instead of fetching reflection information every time, use ReflectionCacheGroup:
-    ReflectionCacheGroup cacheGroup;
-    MonoListWrapper<int> listOfInt(myList, cacheGroup.GetCacheFor(myList));
-    
-    // Or just save the MonoListReflectionCache in a nearby variable
-    // and retrieve it when needed. Just don't keep it across an AppDomain reload.
     
 Just how fast is it?
 --------------------
@@ -67,17 +53,20 @@ by various methods repeated 100,000 times:
 
 Method                                                    | Time
 ----------------------------------------------------------|-------
-Allocating an array, copying the data in and returning it | 657ms
-Using a passed-in list with reserved capacity, creating the wrapper without caching the reflection information, loading the data and returning it | 157ms
-Using a passed-in list with reserved capacity, creating the wrapper with cached reflection information, loading the data and returning it | 23ms
+In a newly allocated array, data memcopied in | 957ms
+In a passed-in list with reserved capacity, bulk loading the data | 30ms
+In a newly allocated array, data computed cell-by-cell | 1843ms
+In a passed-in list, data computer cell-by-cell and stored via mono_listwrapper_begin_write | 775ms
     
 Also, sending 1000 class instances from native to managed land by various methods,
 repeated 100,000 times - these are slower because there's more GC involvement:
 
 Method                                                    | Time
 ----------------------------------------------------------|-------
-Allocating an array, copying the data in and returning it | 1378ms
-Using a passed-in list with reserved capacity, creating the wrapper with cached reflection information, loading the data and returning it | 83ms
+mono_array_clone of sample data set | 2014ms
+Bulk load into existing list | 67ms
+In a newly allocated array, mono_gc_wbarrier_generic_store each cell | 3819ms
+Existing list, via mono_listwrapper_begin_writing | 926ms
     
 These tests are all in the demo program.
 
