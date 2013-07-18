@@ -6,8 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
-#include "MonoListWrapper.hpp"
-#include "ReflectionCacheGroup.hpp"
+#include "MonoListWrapper.h"
 
 static void main_function (MonoDomain *domain, const char *file, int argc, char **argv)
 {
@@ -33,8 +32,6 @@ int SAMPLE_DATA[DATASIZE];
 
 float ALT_SAMPLE_DATA[DATASIZE];
 
-ReflectionCacheGroup* cacheGroup;
-
 MonoArray* GetSampleDataNewArray()
 {
 	MonoArray* result = mono_array_new(mono_domain_get(), mono_get_int32_class(), DATASIZE);
@@ -47,24 +44,23 @@ MonoArray* GetSampleDataNewArray()
 
 void GetSampleDataExistingList(MonoObject* list)
 {	
-	static MonoListReflectionCache& intList(cacheGroup->GetCacheFor(list));
-	MonoListWrapper<int> wr(list, intList);
-	wr.load(SAMPLE_DATA, DATASIZE);
+    MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
+    mono_listwrapper_load(&wr, SAMPLE_DATA, sizeof(int), DATASIZE);
 }
 
 void GetSampleDataExistingListUnshared(MonoObject* list)
 {	
-	MonoListReflectionCache intList;
-    intList.PopulateFrom(mono_object_get_class(list));
-	MonoListWrapper<int> wr(list, intList);
-	wr.load(SAMPLE_DATA, DATASIZE);
+    MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
+    mono_listwrapper_load(&wr, SAMPLE_DATA, sizeof(int), DATASIZE);
 }
 
 void GetAltSampleDataExistingList(MonoObject* list)
 {
-    static MonoListReflectionCache& floatList(cacheGroup->GetCacheFor(list));
-    MonoListWrapper<float> wr(list, floatList);
-    wr.load(ALT_SAMPLE_DATA, DATASIZE);
+    MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
+    mono_listwrapper_load(&wr, ALT_SAMPLE_DATA, sizeof(float), DATASIZE);
 }
 
 int __attribute__ ((noinline)) GetDynamicData(int index)
@@ -87,17 +83,17 @@ MonoArray* GetDynamicSampleDataNewArray()
 
 void GetDynamicSampleDataExistingList(MonoObject* list)
 {
-	static MonoListReflectionCache& intList(cacheGroup->GetCacheFor(list));
-	MonoListWrapper<int> wr(list, intList);
+	MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
     
     guint32 handle;
-    int* buf = wr.beginWriting(DATASIZE, &handle);
+    int* buf = (int*)mono_listwrapper_begin_writing(&wr, DATASIZE, &handle);
 	
     int i;
     for(i = 0; i < DATASIZE; ++i)
         buf[i] = GetDynamicData(i);
     
-    wr.endWriting(i, handle);
+    mono_listwrapper_end_writing(&wr, i, handle);
 }
 
 MonoArray* monoObjectSampleData;
@@ -118,9 +114,9 @@ MonoArray* GetObjSampleDataNewArray()
 
 void GetObjSampleDataExistingList(MonoObject* list)
 {
-	static MonoListReflectionCache& objList(cacheGroup->GetCacheFor(list));
-	MonoListWrapper<MonoObject*> wr(list, objList);
-	wr.load(&((MonoObject**)monoObjectSampleData->vector)[0], monoObjectSampleData->max_length);
+    MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
+	mono_listwrapper_load(&wr, &((MonoObject**)monoObjectSampleData->vector)[0], sizeof(MonoObject*), monoObjectSampleData->max_length);
 }
 
 
@@ -146,19 +142,19 @@ MonoArray* GetObjDynamicSampleDataNewArray()
 
 void GetObjDynamicSampleDataExistingList(MonoObject* list)
 {
-	static MonoListReflectionCache& objList(cacheGroup->GetCacheFor(list));
-	MonoListWrapper<MonoObject*> wr(list, objList);
+	MonoListWrapper wr;
+    mono_listwrapper_init(&wr, list);
     
     mono_array_size_t arrayLength = mono_array_length(monoObjectSampleData);
     
     guint32 handle;
-    MonoObject** buf = wr.beginWriting(arrayLength, &handle);
+    MonoObject** buf = (MonoObject**)mono_listwrapper_begin_writing(&wr, arrayLength, &handle);
 	
     int i;
     for(i = 0; i < arrayLength; ++i)
         buf[i] = GetObjDynamicData(i);
     
-    wr.endWriting(i, handle);
+    mono_listwrapper_end_writing(&wr, arrayLength, handle);
 }
 
 
@@ -167,8 +163,6 @@ main (int argc, char* argv[]) {
 	MonoDomain *domain;
 	const char *file;
 	int retval;
-    
-    cacheGroup = new ReflectionCacheGroup();
 	
     // Create sample data
 	int i;
@@ -209,8 +203,6 @@ main (int argc, char* argv[]) {
 	retval = mono_environment_exitcode_get ();
 	
 	mono_jit_cleanup (domain);
-    
-    delete cacheGroup;
     
 	return retval;
 }
