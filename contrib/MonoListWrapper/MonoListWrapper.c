@@ -1,6 +1,5 @@
 #include <mono/mini/jit.h>
 #include <mono/metadata/exception.h>
-#include <mono/metadata/class-internals.h>
 #include "MonoListWrapper.h"
 
 static struct
@@ -73,7 +72,7 @@ void mono_listwrapper_clear(MonoListWrapper* wrapper)
     // the GC doesn't treat them as outstanding references
     if(MONO_TYPE_IS_REFERENCE(wrapper->elementType) && (*(wrapper->sizeField) > 0))
     {
-        int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
+        int sz = mono_array_element_size (mono_object_get_class((MonoObject*)*(wrapper->itemsField)));
         
         // Let's assume the array has been well-maintained and therefore that we only need to clear as far as the current size
         memset (mono_array_addr_with_size(*wrapper->itemsField, 0, 0), 0, sz * (*(wrapper->sizeField)));
@@ -97,7 +96,7 @@ void mono_listwrapper_set_size(MonoListWrapper* wrapper, int size)
     // the GC doesn't find them
     if(MONO_TYPE_IS_REFERENCE(wrapper->elementType) && (*(wrapper->sizeField) > size))
     {
-        int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
+        int sz = mono_array_element_size (mono_object_get_class((MonoObject*)*(wrapper->itemsField)));
         
         memset (mono_array_addr_with_size(*wrapper->itemsField, sz, size), 0, sz * (*(wrapper->sizeField) - size));
     }
