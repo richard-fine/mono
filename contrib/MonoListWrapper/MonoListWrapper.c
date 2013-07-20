@@ -44,15 +44,7 @@ void mono_listwrapper_init(MonoListWrapper* wrapper, MonoObject* list)
     wrapper->versionField = (guint32*)((char*)list + mono_field_get_offset(ListRefl.version));
     wrapper->itemsField = (MonoArray**)((char*)list + mono_field_get_offset(ListRefl.items));
     
-    MonoClass* listClass = mono_object_get_class(list);
-        
-    if(!mono_class_is_inflated(listClass))
-        mono_raise_exception(mono_get_exception_invalid_cast());
-        
-    MonoGenericClass* genericClass = mono_class_get_generic_class(listClass);
-    MonoGenericContext* genericContext = mono_generic_class_get_context(genericClass);
-    
-    wrapper->elementType = genericContext->class_inst->type_argv[0];
+    wrapper->elementType = mono_class_get_type(mono_class_get_element_class(mono_object_get_class((MonoObject*)*(wrapper->itemsField))));
 }
 
 mono_array_size_t mono_listwrapper_get_capacity(MonoListWrapper* wrapper)
