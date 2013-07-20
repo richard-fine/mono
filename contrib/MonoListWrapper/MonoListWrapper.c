@@ -57,7 +57,7 @@ void mono_listwrapper_init(MonoListWrapper* wrapper, MonoObject* list)
 
 mono_array_size_t mono_listwrapper_get_capacity(MonoListWrapper* wrapper)
 {
-    return wrapper->itemsField != NULL ? (*(wrapper->itemsField))->max_length : 0;
+    return wrapper->itemsField != NULL ? mono_array_length(*(wrapper->itemsField)) : 0;
 }
 
 void mono_listwrapper_set_capacity(MonoListWrapper* wrapper, mono_array_size_t value)
@@ -84,7 +84,7 @@ void mono_listwrapper_clear(MonoListWrapper* wrapper)
         int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
         
         // Let's assume the array has been well-maintained and therefore that we only need to clear as far as the current size
-        memset ((*wrapper->itemsField)->vector, 0, sz * (*(wrapper->sizeField)));
+        memset (mono_array_addr_with_size(*wrapper->itemsField, 0, 0), 0, sz * (*(wrapper->sizeField)));
     }
     
     *(wrapper->sizeField) = 0;
@@ -107,7 +107,7 @@ void mono_listwrapper_set_size(MonoListWrapper* wrapper, int size)
     {
         int sz = mono_array_element_size (mono_object_class (*(wrapper->itemsField)));
         
-        memset ((char*)((*wrapper->itemsField)->vector) + sz * size, 0, sz * (*(wrapper->sizeField) - size));
+        memset (mono_array_addr_with_size(*wrapper->itemsField, sz, size), 0, sz * (*(wrapper->sizeField) - size));
     }
     
     // Set the size
@@ -123,7 +123,7 @@ void mono_listwrapper_load(MonoListWrapper* wrapper, void* data, size_t elemSize
 {
     mono_listwrapper_set_size(wrapper, count);
     
-    gpointer dest = (gpointer)(*(wrapper->itemsField))->vector;
+    gpointer dest = (gpointer)mono_array_addr_with_size(*wrapper->itemsField, 0, 0);
     
     if(MONO_TYPE_IS_REFERENCE(wrapper->elementType))
     {
@@ -143,7 +143,7 @@ void* mono_listwrapper_begin_writing(MonoListWrapper* wrapper, int maxElems, gui
     
     *handle = mono_gchandle_new((MonoObject*)(*(wrapper->itemsField)), TRUE);
     
-    return (*(wrapper->itemsField))->vector;
+    return mono_array_addr_with_size(*wrapper->itemsField, 0, 0);
 }
 
 void mono_listwrapper_end_writing(MonoListWrapper* wrapper, int totalWritten, guint32 handle)
@@ -153,7 +153,7 @@ void mono_listwrapper_end_writing(MonoListWrapper* wrapper, int totalWritten, gu
     if(MONO_TYPE_IS_REFERENCE(wrapper->elementType))
     {
         // Mark all the newly added objects for the GC
-        mono_gc_wbarrier_arrayref_copy(*(wrapper->itemsField), (*(wrapper->itemsField))->vector, totalWritten);
+        mono_gc_wbarrier_arrayref_copy(*(wrapper->itemsField), mono_array_addr_with_size(*wrapper->itemsField, 0, 0), totalWritten);
     }
     
     mono_gchandle_free(handle);
