@@ -7,7 +7,6 @@ static struct
 {
     char isInited;
 	MonoProperty* capacityProp;
-	MonoMethod* clearMethod;
 	MonoClassField* size;
 	MonoClassField* items;
     MonoClassField* version;
@@ -19,7 +18,6 @@ static void mono_listwrapper_init_reflection(MonoObject* listObj)
     MonoClass* klass = mono_object_get_class(listObj);
     
     ListRefl.capacityProp = mono_class_get_property_from_name(klass, "Capacity");
-    ListRefl.clearMethod = mono_class_get_method_from_name(klass, "Clear", 0);
     
     ListRefl.size = mono_class_get_field_from_name(klass, "_size");
 	ListRefl.items = mono_class_get_field_from_name(klass, "_items");
