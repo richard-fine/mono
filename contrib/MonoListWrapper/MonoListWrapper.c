@@ -40,9 +40,9 @@ void mono_listwrapper_init(MonoListWrapper* wrapper, MonoObject* list)
     if(ListRefl.isInited == 0)
         mono_listwrapper_init_reflection(list);
     
-    wrapper->sizeField = (guint32*)((char*)list + ListRefl.size->offset);
-    wrapper->versionField = (guint32*)((char*)list + ListRefl.version->offset);
-    wrapper->itemsField = (MonoArray**)((char*)list + ListRefl.items->offset);
+    wrapper->sizeField = (guint32*)((char*)list + mono_field_get_offset(ListRefl.size));
+    wrapper->versionField = (guint32*)((char*)list + mono_field_get_offset(ListRefl.version));
+    wrapper->itemsField = (MonoArray**)((char*)list + mono_field_get_offset(ListRefl.items));
     
     MonoClass* listClass = mono_object_get_class(list);
         
